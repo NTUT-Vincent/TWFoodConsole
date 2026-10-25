@@ -39,3 +39,42 @@ This is a single-admin MVP: key possession is the review authorization mechanism
 - The TWFoodMCP normative policy is https://github.com/NTUT-Vincent/TWFoodMCP/blob/main/docs/TRUST_AND_CLASSIFICATION_POLICY.md .
 - This app performs *basic* validation only; source ingestion, identity resolution, provenance checks, link checks, stale detection, and public release eligibility must pass the TWFoodMCP pipeline before any PR is merged.
 - The API works from the GitHub Contents / Git Trees APIs and therefore is subject to GitHub API rate limits and tree size.
+
+
+## Vercel-hosted MCP (read-only)
+
+The same Next.js deployment serves the human review console and a **stateless Streamable HTTP MCP server** at `/api/mcp`. No Cloudflare, Redis, separate MCP server, or external database is required. GitHub TWFoodMCP is still the sole OKF source of truth.
+
+### Tools
+
+| MCP tool | Purpose |
+| --- | --- |
+| `search_food` | Keyword/brand search, with `stable` (default) or explicit `preview` channel, and a pagination cursor. |
+| `get_food` | Read one OKF concept by its repo-relative `path`, returning nutrition, basis, provenance, quality and verification. |
+| `list_brands` | List directory-based brand discovery candidates (counts **do not** imply stable/verified data). |
+
+Example MCP server URL after deployment: `https://<your-vercel-domain>/api/mcp`.
+
+### Run and smoke-test
+
+```bash
+npm install
+npm run dev
+npm run test:mcp -- http://localhost:3000/api/mcp
+# Or test the Vercel preview deployment:
+npm run test:mcp -- https://<your-preview>.vercel.app/api/mcp
+```
+
+MCP v2 uses `mcp-handler@^2`, `@modelcontextprotocol/server@^2` and `zod@^4`, requiring Node.js 20+. Attach the URL as an HTTP/Streamable HTTP remote MCP server in a compatible client. The legacy HTTP+SSE transport is not provided.
+
+The endpoint is **public, read-only**: it never exposes the `/api/review` write workflow or server credentials. Set `GITHUB_TOKEN` only in Vercel's server-side environment for higher GitHub API quotas; no token is sent to MCP clients.
+
+### Data eligibility and limits
+
+- Default `stable` returns only `status: stable`, `access.classification: public`, and records with a `verified` actor present in `config/authorized-reviewers.json`. If the reviewer config is unavailable, reads fail closed.
+- Explicit `preview` can additionally return **public drafts**, clearly marked as unreviewed; they are never presented as approved or calculation-ready. Deprecated and non-public records are excluded.
+- Missing nutrition values stay unknown, not 0. We perform **no unsupported unit conversions or nutrition calculations** in this initial read-only MCP.
+- Search uses a filename/path index, then checks eligibility against each matched OKF file. Large queries scan at most 30 candidates per call; use `next_cursor` to continue. A lack of results is not proof of absent food. Trees and individual file reads are cached for up to 5 minutes.
+- Source data may be outdated: all responses retain source links, revision, quality and stale warnings. Public clients should not treat old allergen or nutrition values as medical advice.
+
+The MCP migration does **not** change TWFoodMCP OKF records or their publication policy. The independent TWFoodMCP repository still includes historical Cloudflare-specific documentation/workflows; this Console MCP does not depend on them.
