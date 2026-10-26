@@ -114,10 +114,14 @@ function NutritionTable({ meta }: { meta: OkfMeta }) {
   const nutrition = firstNutrition(meta);
   const values = obj(nutrition.values);
   const serving = str(obj(meta.serving).description);
-  const basis = SERVING_NAMES[str(nutrition.basis)] || (serving ? "" : "份量未註明");
+  const basisKey = str(nutrition.basis);
+  const basis = basisKey === "per_serving"
+    ? (serving || "每份")
+    : (SERVING_NAMES[basisKey] || "份量未註明");
   return (
     <section className="panel">
-      <div className="panel-title"><h3>營養成分</h3><span>{serving || basis || "份量未註明"}</span></div>
+      <div className="panel-title"><h3>營養成分</h3><span>{basis}</span></div>
+      {serving && basisKey !== "per_serving" && <p className="serving-description">包裝份量：{serving}</p>}
       <div className="nutrient-grid">
         {NUTRIENTS.map(({ key, label, unit }) => {
           const value = values[key];
