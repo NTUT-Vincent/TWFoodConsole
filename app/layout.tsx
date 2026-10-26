@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "TWFood Console | OKF Review Workspace",
-  description: "Browse and review Taiwan food nutrition knowledge from TWFoodMCP Open Knowledge Format."
+  title: "TWFood｜台灣食品營養資料庫",
+  description: "查詢台灣食品的營養成分、資料來源與審核狀態。"
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
