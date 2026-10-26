@@ -225,7 +225,10 @@ export default function Home() {
     const unique = new Map<string, string>();
     for (const entry of index?.files || []) unique.set(entry.group + "/" + entry.brand, categoryName(entry));
     return [...unique].map(([value, label]) => ({ value, label }))
-      .sort((a, b) => a.label.localeCompare(b.label, "zh-Hant"));
+      .sort((a, b) =>
+        Number(a.value.startsWith("generic-foods/")) - Number(b.value.startsWith("generic-foods/")) ||
+        a.label.localeCompare(b.label, "zh-Hant")
+      );
   }, [index]);
 
   const filtered = useMemo(() => (index?.files || []).filter((entry) => {

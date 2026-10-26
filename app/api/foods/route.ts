@@ -17,7 +17,10 @@ export async function GET() {
         group: x.path.split("/")[1],
         name: x.path.split("/").at(-1)!.replace(/\.md$/, "").replace(/_/g, " ")
       }))
-      .sort((a, b) => a.path.localeCompare(b.path, "zh-Hant"));
+      .sort((a, b) =>
+        Number(a.group === "generic-foods") - Number(b.group === "generic-foods") ||
+        a.path.localeCompare(b.path, "zh-Hant")
+      );
     return NextResponse.json({ files, truncated: !!result.truncated, repo });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unexpected error" }, { status: 502 });
