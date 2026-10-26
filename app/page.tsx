@@ -22,7 +22,7 @@ const NUTRIENTS = [
   { key: "carbohydrate_g", label: "碳水化合物", unit: "公克" },
   { key: "sugar_g", label: "糖", unit: "公克" },
   { key: "sodium_mg", label: "鈉", unit: "毫克" },
-  { key: "fiber_g", label: "膳食纖維", unit: "公克" }
+  { key: "dietary_fiber_g", label: "膳食纖維", unit: "公克" }
 ] as const;
 
 const BRAND_NAMES: Record<string, string> = {
@@ -40,6 +40,24 @@ const BRAND_NAMES: Record<string, string> = {
   laifu: "來福", dezheng: "得正", "morning-michishiki": "早安美芝城",
   zazengbao: "炸雞大獅"
 };
+const CATEGORY_NAMES: Record<string, string> = {
+  algae: "藻類", "bakery-snacks": "烘焙與點心", beverages: "飲料",
+  dairy: "乳品", eggs: "蛋類", "fats-oils": "油脂",
+  "fish-shellfish": "魚類與海鮮", fruits: "水果", grains: "穀物",
+  legumes: "豆類", meats: "肉類", mushrooms: "菇類",
+  "nuts-seeds": "堅果與種子", "processed-prepared-foods": "加工食品",
+  "seasonings-spices": "調味料", starches: "澱粉類",
+  sugars: "糖類", vegetables: "蔬菜"
+};
+function groupName(group: string): string {
+  return group === "generic-foods" ? "一般食品" : group === "menu-items" ? "餐飲與包裝食品" : group.replace(/-/g, " ");
+}
+function categoryName(entry: FoodEntry): string {
+  const name = entry.group === "generic-foods"
+    ? (CATEGORY_NAMES[entry.brand] || entry.brand.replace(/-/g, " "))
+    : brandName(entry.brand);
+  return entry.group === "menu-items" ? name : groupName(entry.group) + " · " + name;
+}
 const SOURCE_NAMES: Record<string, string> = {
   primary_label: "商品包裝", primary_government: "政府公開資料",
   primary_official: "品牌官方資料", verifiable_secondary: "其他可查證資料",
@@ -77,7 +95,9 @@ function buildFields(meta: OkfMeta): EditFields {
     name: str(food.name) || str(meta.title),
     serving: str(serving.description)
   };
-  for (const nutrient of NUTRIENTS) fields[nutrient.key] = str(values[nutrient.key]);
+  for (const nutrient of NUTRIENTS) {
+    fields[nutrient.key] = str(values[nutrient.key] ?? (nutrient.key === "dietary_fiber_g" ? values.fiber_g : undefined));
+  }
   return fields;
 }
 function applyFields(source: string, fields: EditFields): string {
@@ -98,13 +118,17 @@ function applyFields(source: string, fields: EditFields): string {
   if (Array.isArray(original.nutrition) && original.nutrition.length > 0) {
     for (const nutrient of NUTRIENTS) {
       const raw = (fields[nutrient.key] || "").trim();
+      const originalValues = obj(firstNutrition(original).values);
+      const sourceKey = nutrient.key === "dietary_fiber_g" &&
+        originalValues.dietary_fiber_g === undefined && originalValues.fiber_g !== undefined
+        ? "fiber_g" : nutrient.key;
       if (!raw) {
-        doc.deleteIn(["nutrition", 0, "values", nutrient.key]);
+        doc.deleteIn(["nutrition", 0, "values", sourceKey]);
         continue;
       }
       const number = Number(raw);
       if (!Number.isFinite(number) || number < 0) throw new Error("請檢查「" + nutrient.label + "」的數值");
-      doc.setIn(["nutrition", 0, "values", nutrient.key], number);
+      doc.setIn(["nutrition", 0, "values", sourceKey], number);
     }
   }
   return "---\n" + doc.toString() + "---\n" + source.slice(match[0].length);
@@ -124,7 +148,7 @@ function NutritionTable({ meta }: { meta: OkfMeta }) {
       {serving && basisKey !== "per_serving" && <p className="serving-description">包裝份量：{serving}</p>}
       <div className="nutrient-grid">
         {NUTRIENTS.map(({ key, label, unit }) => {
-          const value = values[key];
+          const value = values[key] ?? (key === "dietary_fiber_g" ? values.fiber_g : undefined);
           const known = typeof value === "number" || (typeof value === "string" && value.trim() !== "");
           return <div className="nutrient" key={key}>
             <span>{label}</span>
@@ -197,13 +221,17 @@ export default function Home() {
     return () => { alive = false; };
   }, [path]);
 
-  const brands = useMemo(() => [...new Set((index?.files || []).map((entry) => entry.brand))]
-    .sort((a, b) => brandName(a).localeCompare(brandName(b), "zh-Hant")), [index]);
+  const brands = useMemo(() => {
+    const unique = new Map<string, string>();
+    for (const entry of index?.files || []) unique.set(entry.group + "/" + entry.brand, categoryName(entry));
+    return [...unique].map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, "zh-Hant"));
+  }, [index]);
 
   const filtered = useMemo(() => (index?.files || []).filter((entry) => {
-    if (brand !== "all" && entry.brand !== brand) return false;
+    if (brand !== "all" && entry.group + "/" + entry.brand !== brand) return false;
     const keyword = search.trim().toLocaleLowerCase();
-    return !keyword || (documentName(entry) + " " + brandName(entry.brand)).toLocaleLowerCase().includes(keyword);
+    return !keyword || (documentName(entry) + " " + categoryName(entry)).toLocaleLowerCase().includes(keyword);
   }), [index, brand, search]);
 
   const inspection = useMemo(() => inspectOkf(concept?.content || ""), [concept]);
@@ -275,7 +303,7 @@ export default function Home() {
               <label className="search-field"><Search size={17}/><input aria-label="搜尋食品名稱或品牌" placeholder="搜尋食品名稱或品牌" value={search} onChange={(event) => setSearch(event.target.value)}/></label>
               <select aria-label="選擇品牌" value={brand} onChange={(event) => setBrand(event.target.value)}>
                 <option value="all">全部品牌與類別</option>
-                {brands.map((slug) => <option value={slug} key={slug}>{brandName(slug)}</option>)}
+                {brands.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
               </select>
               {index && <span className="filter-count">找到 {filtered.length.toLocaleString()} 筆</span>}
             </div>
@@ -285,7 +313,7 @@ export default function Home() {
               {index && filtered.length === 0 && <p className="quiet-message">找不到符合的食品。</p>}
               {filtered.slice(0, 100).map((entry) =>
                 <button className={"food-item " + (entry.path === path ? "current" : "")} key={entry.path} onClick={() => setPath(entry.path)}>
-                  <span><strong>{documentName(entry)}</strong><small>{brandName(entry.brand)}</small></span><ChevronRight size={16}/>
+                  <span><strong>{documentName(entry)}</strong><small>{categoryName(entry)}</small></span><ChevronRight size={16}/>
                 </button>
               )}
               {filtered.length > 100 && <p className="list-hint">還有更多結果，請輸入食品名稱搜尋。</p>}
@@ -298,7 +326,7 @@ export default function Home() {
             {detailError && <div className="panel empty-state">目前無法取得這項食品資料，請稍後重試。</div>}
             {concept && !loading && <>
               <section className="panel food-summary">
-                <div className="food-brand">{str(food.brand) || brandName(path.split("/")[2])}</div>
+                <div className="food-brand">{str(food.brand) || categoryName({ path, name: "", brand: path.split("/")[2], group: path.split("/")[1] })}</div>
                 <h2>{str(food.name) || str(meta.title) || "未命名食品"}</h2>
                 <div className="state-tags">
                   <span className={"state-tag " + (status === "stable" ? "published" : status === "deprecated" ? "muted" : "pending")}>{STATUS_NAMES[status] || "狀態待確認"}</span>

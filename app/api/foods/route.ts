@@ -14,6 +14,7 @@ export async function GET() {
       .map((x) => ({
         path: x.path,
         brand: x.path.split("/")[2],
+        group: x.path.split("/")[1],
         name: x.path.split("/").at(-1)!.replace(/\.md$/, "").replace(/_/g, " ")
       }))
       .sort((a, b) => a.path.localeCompare(b.path, "zh-Hant"));

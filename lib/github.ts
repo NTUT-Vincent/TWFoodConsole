@@ -1,16 +1,16 @@
 const API = "https://api.github.com";
 export const OKF_REPO = process.env.OKF_REPO || "NTUT-Vincent/TWFoodMCP";
 export const OKF_BRANCH = "main";
-const PREFIX = "knowledge/menu-items/";
+const KNOWLEDGE_ROOT = "knowledge/";
 
-export type FoodEntry = { path: string; name: string; brand: string };
+export type FoodEntry = { path: string; name: string; brand: string; group: string };
 
 export function validConceptPath(path: unknown): path is string {
   return typeof path === "string" &&
-    path.startsWith(PREFIX) &&
+    path.startsWith(KNOWLEDGE_ROOT) &&
+    path.split("/").length >= 3 &&
     path.endsWith(".md") &&
-    !path.endsWith("/index.md") &&
-    !path.endsWith("/log.md") &&
+    !["index.md", "log.md"].includes(path.split("/").at(-1) || "") &&
     !path.split("/").some((x) => !x || x === "." || x === ".." || x.includes("\\") || x.includes("\0"));
 }
 

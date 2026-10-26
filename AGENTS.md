@@ -20,3 +20,10 @@
 - Show clearly labeled source evidence, lifecycle state, and *human* review state; never imply an official source has already been human-verified.
 - Nutrition basis must match the numeric values (e.g. per-serving vs per-100g). Package serving descriptions are separate when the basis differs.
 - Missing nutrients display as 「未提供」 and are never silently converted to zero.
+
+## Discovery and search
+
+- The food explorer must index concept files recursively across all of `knowledge/`, not only `knowledge/menu-items/`. New directories such as `knowledge/generic-foods/` must be searchable without UI changes.
+- Treat only `index.md` and `log.md` as reserved documents. Do not hard-code an allowlist of brands or food categories.
+- The filter options must be derived from the current repository tree; friendly display-name maps may provide translations but must never gate discovery.
+- Preserve source-specific nutrient keys, including `dietary_fiber_g` and legacy `fiber_g`, without silently discarding either.
